@@ -1,0 +1,17 @@
+{
+  "name": "thelia/social-login-module",
+  "description": "SocialLogin module for Thelia",
+  "license": "GPL-3.0-or-later",
+  "type": "thelia-module",
+  "require": {
+    "thelia/installer": "^1.6",
+    "league/oauth2-google": "^5.0",
+    "league/oauth2-facebook": "^2.2",
+    "patrickbussmann/oauth2-apple": "^0.4.0",
+    "firebase/php-jwt": "^6.0 || ^7.0",
+    "enshrined/svg-sanitize": "^1.0"
+  },
+  "extra": {
+    "installer-name": "SocialLogin"
+  }
+}

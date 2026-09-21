@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<database defaultIdMethod="native" name="TheliaMain" namespace="SocialLogin\Model">
+
+    <table name="social_login_identity">
+        <column autoIncrement="true" name="id" primaryKey="true" required="true" type="INTEGER" />
+        <column name="customer_id" required="true" type="INTEGER" />
+        <column name="provider" required="true" size="32" type="VARCHAR" />
+        <column name="provider_identifier" required="true" size="255" type="VARCHAR" />
+        <column name="email" size="255" type="VARCHAR" />
+        <column name="last_login_at" type="TIMESTAMP" />
+        <behavior name="timestampable" />
+        <foreign-key foreignTable="customer" name="fk_social_login_identity_customer" onDelete="CASCADE" onUpdate="RESTRICT">
+            <reference foreign="id" local="customer_id" />
+        </foreign-key>
+        <unique name="provider_provider_identifier_UNIQUE">
+            <unique-column name="provider" />
+            <unique-column name="provider_identifier" />
+        </unique>
+        <index name="idx_social_login_identity_customer_id">
+            <index-column name="customer_id" />
+        </index>
+    </table>
+
+    <external-schema filename="local/config/schema.xml" referenceOnly="true" />
+</database>

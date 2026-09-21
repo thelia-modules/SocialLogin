@@ -1,0 +1,37 @@
+{# The link a visitor came from travels to the departure route as well, so a provider
+   refusal or a password prompt still knows where to come back to. The checkout
+   identification page hands this hook its own next step explicitly (nextStepUrl); every
+   other caller falls back to the "redirect" query parameter the page itself was reached
+   with. #}
+{% set redirectParam = nextStepUrl|default(null) ?: (app.request ? app.request.query.get('redirect') : null) %}
+
+<div class="mt-6">
+    {% if notice|default(null) %}
+        <p class="paragraph-2 text-black mb-4" role="alert">{{ notice|trans({}, 'sociallogin') }}</p>
+    {% endif %}
+
+    {% if providers is not empty %}
+        <div class="flex items-center gap-3 mb-4">
+            <hr class="flex-1 text-grey" />
+            <span class="paragraph-3 text-grey uppercase">{{ 'or'|trans({}, 'sociallogin') }}</span>
+            <hr class="flex-1 text-grey" />
+        </div>
+
+        {# The brand mark for each provider lives in the theme's Molecules:SocialButton
+           component, so the design system owns the visual and this module only wires the
+           route and the configured providers. #}
+        <div class="flex flex-col gap-3">
+            {# `logo` is the merchant's official SVG, ALREADY SANITIZED by the hook
+               (SocialLoginConfiguration::getCustomLogo). It is null when no custom logo is
+               set — the component then renders the theme's built-in brand mark. #}
+            {% for item in providers %}
+                <twig:Molecules:SocialButton:Base
+                    provider="{{ item.code }}"
+                    href="{{ path('sociallogin_start', redirectParam ? {provider: item.code, redirect: redirectParam} : {provider: item.code}) }}"
+                    label="{{ 'Continue with %provider%'|trans({'%provider%': item.label}, 'sociallogin') }}"
+                    :trustedLogoSvg="item.logo"
+                />
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>

@@ -1,0 +1,48 @@
+{% set noticeVariant = noticeKey == 'detached' ? 'success' : 'error' %}
+{% set noticeText = noticeKey == 'detached'
+    ? 'Social connection removed.'|trans({}, 'sociallogin')
+    : (noticeKey ? noticeKey|trans({}, 'sociallogin') : null) %}
+
+<div class="flex flex-col gap-6">
+    <h2 class="h4 text-black">{{ 'Social connections'|trans({}, 'sociallogin') }}</h2>
+
+    {% if noticeText %}
+        <twig:Molecules:SnackBar:Base variant="{{ noticeVariant }}" :withIcon="true" text="{{ noticeText }}" />
+    {% endif %}
+
+    {% if identities is empty %}
+        <p class="paragraph-2 text-grey">{{ 'You have not linked any social account yet.'|trans({}, 'sociallogin') }}</p>
+    {% else %}
+        <div class="flex flex-col gap-4">
+            {% for identity in identities %}
+                <div class="flex flex-col gap-3 px-10 pt-8 pb-6 rounded-lg bg-lighter">
+                    {# providerLabels comes from the registry, through SocialLoginAccountThemeHook:
+                       a provider removed since the identity was created falls back to its raw code. #}
+                    <p class="paragraph-2 text-black">{{ providerLabels[identity.getProvider()]|default(identity.getProvider()|capitalize) }}, {{ identity.getEmail() }}</p>
+
+                    {% set lastLoginAt = identity.getLastLoginAt('d/m/Y H:i') %}
+                    {% if lastLoginAt %}
+                        <p class="paragraph-3 text-grey">
+                            {{ 'Last sign-in: %date%'|trans({'%date%': lastLoginAt}, 'sociallogin') }}
+                        </p>
+                    {% endif %}
+
+                    {% if requiresPasswordConfirmation %}
+                        <p class="paragraph-3 text-grey">
+                            {{ 'This is your only sign-in method. Set a password first.'|trans({}, 'sociallogin') }}
+                            <twig:Molecules:Link:Base href="{{ path('password_forgotten') }}" customText="{{ 'Forgot password?'|trans }}" />
+                        </p>
+                    {% endif %}
+
+                    <form method="post" action="{{ path('sociallogin_detach', {identityId: identity.getId()}) }}" class="flex flex-col gap-3">
+                        <input type="hidden" name="_token" value="{{ csrf_token('sociallogin_detach') }}">
+                        {% if requiresPasswordConfirmation %}
+                            <twig:Fields:Input:Base type="password" name="password" label="{{ 'Password'|trans }}" required />
+                        {% endif %}
+                        <twig:Molecules:Button:Base text="{{ 'Disconnect'|trans({}, 'sociallogin') }}" type="submit" color="minimal" class="w-max" />
+                    </form>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>

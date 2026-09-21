@@ -1,0 +1,141 @@
+{# A field's errors, shown under it after a refused save (the form is restored by
+   ConfigurationHook). Rendered here rather than through form_errors: this screen does not
+   opt in to the back office form theme, whose Bootstrap markup it reproduces. #}
+{% macro field_errors(field) %}
+    {% for error in field.vars.errors %}
+        <div class="invalid-feedback d-block">{{ error.message }}</div>
+    {% endfor %}
+{% endmacro %}
+
+{% set form = configuration_form %}
+
+{# Per-field help shown under the trickier configuration fields. A field with no entry
+   here still renders fine, the label and the callback URL note above already carry it. #}
+{% set fieldHelp = {
+    'apple_client_id': 'This is the Services ID identifier, not the App ID.',
+    'apple_team_id': 'Found in the top-right corner of your Apple Developer account, under Membership.',
+    'apple_key_id': 'The Key ID shown when the Sign in with Apple private key was created.',
+    'apple_private_key': 'Paste the full content of the .p8 file downloaded when the key was created; it can only be downloaded once.',
+} %}
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="card-title mb-0">{{ 'Social login configuration'|trans({}, 'sociallogin.bo.default-twig') }}</h5>
+    </div>
+    <div class="card-body">
+        <p class="text-muted small">
+            {{ 'Sign-in requires HTTPS: a provider is only offered on the storefront once its fields below are filled in and the shop is served over TLS.'|trans({}, 'sociallogin.bo.default-twig') }}
+        </p>
+
+        {{ form_start(form, {action: path('sociallogin_config_configuration'), method: 'POST'}) }}
+            <input type="hidden" name="{{ form.vars.full_name }}[success_url]" value="{{ path('admin.module.configure', {module_code: 'SocialLogin'}) }}">
+            <input type="hidden" name="{{ form.vars.full_name }}[error_url]" value="{{ path('admin.module.configure', {module_code: 'SocialLogin'}) }}">
+            {% do form.success_url.setRendered %}
+            {% do form.error_url.setRendered %}
+
+            {{ form_errors(form) }}
+
+            {# One block per provider, built from what the registry lists rather than
+               copied per provider: a 4th provider needs no template change. #}
+            {% for code, provider in providers %}
+                {% set providerLabel = provider.label|trans({}, 'sociallogin.bo.default-twig') %}
+
+                <div class="border rounded p-3 mb-4">
+                    <h6 class="mb-3">{{ providerLabel }}</h6>
+
+                    {% if code == 'google' %}
+                        <p class="text-muted small">
+                            {{ 'Create an OAuth client ID of type "Web application" in the Google Cloud Console (APIs & Services > Credentials), then add the callback URL below to its authorized redirect URIs. Thelia requests the openid, email and profile scopes automatically.'|trans({}, 'sociallogin.bo.default-twig') }}
+                        </p>
+                    {% elseif code == 'facebook' %}
+                        <p class="text-muted small">
+                            {{ 'Create an app on Meta for Developers, add the "Facebook Login" product, then register the callback URL below as a valid OAuth redirect URI. The App ID and App secret are on the app dashboard.'|trans({}, 'sociallogin.bo.default-twig') }}
+                        </p>
+                    {% elseif code == 'apple' %}
+                        <div class="text-muted small">
+                            <p class="mb-1">
+                                {{ 'Sign in with Apple requires a paid Apple Developer account. Create a Services ID (not an App ID) and enable "Sign in with Apple" on it, enter it in the Service ID field below.'|trans({}, 'sociallogin.bo.default-twig') }}
+                            </p>
+                            <ol class="mb-1 ps-3">
+                                <li>{{ 'On the Services ID, declare your domain and the Return URL, the callback URL below, then verify the domain by hosting the file Apple provides at /.well-known/apple-developer-domain-association.txt (HTTPS, valid 7 days).'|trans({}, 'sociallogin.bo.default-twig') }}</li>
+                                <li>{{ 'Create a Sign in with Apple private key (a .p8 file) and note its Key ID.'|trans({}, 'sociallogin.bo.default-twig') }}</li>
+                                <li>{{ 'Find your Team ID and fill in the fields below with the Services ID, Team ID, Key ID and the content of the .p8 file.'|trans({}, 'sociallogin.bo.default-twig') }}</li>
+                            </ol>
+                            <p class="mb-1">
+                                {{ 'The client secret is generated automatically from the private key on every sign-in: there is nothing to renew manually.'|trans({}, 'sociallogin.bo.default-twig') }}
+                            </p>
+                            <p class="mb-0">
+                                {{ "The customer's name is only provided on the very first authorization. The email address may be a private relay address (@privaterelay.appleid.com); it is accepted like any other."|trans({}, 'sociallogin.bo.default-twig') }}
+                            </p>
+                        </div>
+                    {% endif %}
+
+                    <p class="text-muted small">
+                        {{ 'Callback URL to declare in the %provider% console'|trans({'%provider%': providerLabel}, 'sociallogin.bo.default-twig') }}:
+                        <code>{{ provider.callbackUrl }}</code>
+                    </p>
+                    <div class="form-check mb-3">
+                        {{ form_widget(attribute(form, provider.enabledFieldName), {attr: {class: 'form-check-input'}}) }}
+                        {{ form_label(attribute(form, provider.enabledFieldName), null, {label_attr: {class: 'form-check-label'}}) }}
+                    </div>
+                    {# Where this provider appears among the others, on the storefront
+                       and on this screen; empty keeps the default order. #}
+                    {% set positionField = attribute(form, provider.positionFieldName) %}
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            {{ form_label(positionField, null, {label_attr: {class: 'form-label'}}) }}
+                            {{ form_widget(positionField, {attr: positionField.vars.attr|merge({class: 'form-control' ~ (positionField.vars.errors|length > 0 ? ' is-invalid' : '')})}) }}
+                            {{ _self.field_errors(positionField) }}
+                            <div class="form-text">{{ positionField.vars.help }}</div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        {% for fieldName in provider.credentialFieldNames %}
+                            {% set fieldView = attribute(form, fieldName) %}
+                            {% set isSecret = fieldName in provider.secretFieldNames %}
+                            {% set isTextarea = 'textarea' in fieldView.vars.block_prefixes %}
+                            {% set fieldAttr = isSecret
+                                ? {class: 'form-control' ~ (isTextarea ? ' font-monospace' : ''), placeholder: '••••••••'}
+                                : {class: 'form-control'} %}
+                            {% if isTextarea %}
+                                {% set fieldAttr = fieldAttr|merge({rows: 6}) %}
+                            {% endif %}
+
+                            <div class="{{ isTextarea ? 'col-md-12' : 'col-md-6' }} mb-3">
+                                {{ form_label(fieldView) }}
+                                {# A secret is never printed back, not even the one just typed
+                                   into a form redisplayed after a refused save. #}
+                                {% set widgetVariables = {attr: fieldAttr|merge({class: fieldAttr.class ~ (fieldView.vars.errors|length > 0 ? ' is-invalid' : '')})} %}
+                                {{ form_widget(fieldView, isSecret ? widgetVariables|merge({value: ''}) : widgetVariables) }}
+                                {{ _self.field_errors(fieldView) }}
+                                {% if fieldName in fieldHelp %}
+                                    <div class="form-text">{{ fieldHelp[fieldName]|trans({}, 'sociallogin.bo.default-twig') }}</div>
+                                {% endif %}
+                                {% if isSecret %}
+                                    <div class="form-text">{{ 'Leave empty to keep the current value'|trans({}, 'sociallogin.bo.default-twig') }}</div>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
+
+                    {# Optional official logo, pasted as SVG and sanitized on submission;
+                       empty means the theme's built-in brand mark is used. Its label comes
+                       from the form, which also names it in the refusal message. #}
+                    {% set logoField = attribute(form, provider.logoFieldName) %}
+                    <div class="mb-1">
+                        {{ form_label(logoField, null, {label_attr: {class: 'form-label'}}) }}
+                        {{ form_widget(logoField, {attr: {class: 'form-control font-monospace' ~ (logoField.vars.errors|length > 0 ? ' is-invalid' : ''), rows: 5, placeholder: '<svg ...>...</svg>'}}) }}
+                        {{ _self.field_errors(logoField) }}
+                        <div class="form-text">
+                            {{ 'Paste the SVG of the provider\'s official logo. For Apple, use the asset from Apple Design Resources. Leave empty to use the built-in brand mark. Presentation attributes only; scripts, styles, links and external references are removed.'|trans({}, 'sociallogin.bo.default-twig') }}
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-save"></i> {{ 'Save'|trans({}, 'sociallogin.bo.default-twig') }}
+            </button>
+        {{ form_end(form) }}
+    </div>
+</div>
