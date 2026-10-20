@@ -14,6 +14,7 @@ declare(strict_types=1);
 
 namespace SocialLogin\Tests\Integration\Service;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use Psr\Log\NullLogger;
 use SocialLogin\DTO\SocialLoginOutcomeStatus;
 use SocialLogin\DTO\VerifiedIdentity;
@@ -110,6 +111,49 @@ final class SocialLoginServiceTest extends IntegrationTestCase
         $linked = $this->identities->findForCustomer($outcome->customer->getId());
         self::assertCount(1, $linked);
         self::assertSame('google', $linked[0]->getProvider());
+    }
+
+    /**
+     * A provider that sends an empty or whitespace-only name has not sent one: the account
+     * takes the local part of the address, exactly as it does when the name is missing.
+     *
+     * @return iterable<string, array{0: string|null, 1: string|null}>
+     */
+    public static function blankNames(): iterable
+    {
+        yield 'empty strings' => ['', ''];
+        yield 'whitespace only' => ['   ', "\t\n "];
+        yield 'blank first name, no last name' => ['', null];
+        yield 'no first name, blank last name' => [null, '  '];
+    }
+
+    #[DataProvider('blankNames')]
+    public function testBlankNamesFromTheProviderFallBackToTheAddressLocalPart(?string $firstName, ?string $lastName): void
+    {
+        $email = 'ada.lovelace.'.str_replace('.', '', uniqid('', true)).'@test.com';
+
+        $outcome = $this->buildService()->completeLogin(
+            new VerifiedIdentity('google', 'sub-blank-'.uniqid('', true), $email, true, $firstName, $lastName),
+        );
+
+        self::assertNotNull($outcome->customer);
+        $customer = CustomerQuery::create()->findPk($outcome->customer->getId());
+        self::assertNotNull($customer);
+        self::assertStringStartsWith('Ada Lovelace', $customer->getFirstname());
+        self::assertStringStartsWith('Ada Lovelace', $customer->getLastname());
+    }
+
+    public function testABlankLastNameTakesTheFirstNameTheProviderSent(): void
+    {
+        $outcome = $this->buildService()->completeLogin(
+            new VerifiedIdentity('google', 'sub-mononym-'.uniqid('', true), 'mononym-'.uniqid('', true).'@test.com', true, 'Madonna', '  '),
+        );
+
+        self::assertNotNull($outcome->customer);
+        $customer = CustomerQuery::create()->findPk($outcome->customer->getId());
+        self::assertNotNull($customer);
+        self::assertSame('Madonna', $customer->getFirstname());
+        self::assertSame('Madonna', $customer->getLastname());
     }
 
     public function testAnUnknownIdentityOnAnExistingAccountRequiresAttachmentWithoutSigningIn(): void
