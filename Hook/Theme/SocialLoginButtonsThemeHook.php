@@ -22,6 +22,7 @@ use SocialLogin\Exception\OrphanedIdentityException;
 use SocialLogin\Exception\ProviderCommunicationException;
 use SocialLogin\Exception\ProviderNotConfiguredException;
 use SocialLogin\Exception\SocialLoginNotices;
+use SocialLogin\Exception\TooManyAttemptsException;
 use SocialLogin\Exception\UnknownProviderException;
 use SocialLogin\Provider\ProviderRegistry;
 use SocialLogin\Service\SocialLoginConfiguration;
@@ -52,10 +53,10 @@ final readonly class SocialLoginButtonsThemeHook implements ThemeHookInterface
      *
      * Built from the exceptions {@see \SocialLogin\Controller\Front\SocialLoginController::callback()}
      * can let through to `loginErrorResponse()` — every SocialLoginException reachable
-     * from state validation, provider resolution, the provider exchange and
-     * `SocialLoginService::completeLogin()`'s email checks — plus the two outcomes that
-     * are not exceptions, so a key renamed on either side cannot silently fall out of
-     * this allow-list.
+     * from the callback's rate limit, state validation, provider resolution, the provider
+     * exchange and `SocialLoginService::completeLogin()`'s email checks — plus the two
+     * outcomes that are not exceptions, so a key renamed on either side cannot silently
+     * fall out of this allow-list.
      */
     private const array ALLOWED_NOTICE_KEYS = [
         UnknownProviderException::TRANSLATION_KEY,
@@ -66,6 +67,7 @@ final readonly class SocialLoginButtonsThemeHook implements ThemeHookInterface
         EmailNotProvidedException::TRANSLATION_KEY,
         EmailNotVerifiedException::TRANSLATION_KEY,
         OrphanedIdentityException::TRANSLATION_KEY,
+        TooManyAttemptsException::TRANSLATION_KEY,
         SocialLoginNotices::UNEXPECTED_ERROR,
         SocialLoginNotices::ACCOUNT_ACTIVATION_REQUIRED,
     ];

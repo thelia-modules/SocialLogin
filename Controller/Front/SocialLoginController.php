@@ -25,6 +25,7 @@ use SocialLogin\Provider\ProviderRegistry;
 use SocialLogin\Service\CrossSiteCallbackHandoff;
 use SocialLogin\Service\IdentityAttachmentService;
 use SocialLogin\Service\IdentityDetachmentService;
+use SocialLogin\Service\PasswordAttemptLimiter;
 use SocialLogin\Service\SocialLoginService;
 use SocialLogin\Service\StateManager;
 use SocialLogin\SocialLogin;
@@ -55,6 +56,14 @@ final class SocialLoginController extends BaseFrontController
 {
     private const string DETACH_CSRF_TOKEN_ID = 'sociallogin_detach';
     private const string ATTACH_CANCEL_CSRF_TOKEN_ID = 'sociallogin_attach_cancel';
+
+    /**
+     * What one client address may send to one provider's callback within the limiter's
+     * window. A genuine sign-in lands here once, a few retries at most; this leaves room
+     * for several visitors behind one shared address while still stopping a replay loop.
+     */
+    private const string CALLBACK_RATE_LIMIT_FLOW = 'callback';
+    private const int CALLBACK_MAXIMUM_ATTEMPTS = 20;
 
     /**
      * The cookie that binds a handoff key to the browser that made the POST. Set on the
@@ -118,11 +127,21 @@ final class SocialLoginController extends BaseFrontController
         SocialLoginService $socialLoginService,
         CrossSiteCallbackHandoff $callbackHandoff,
         AuthenticationReturnUrl $authenticationReturnUrl,
+        PasswordAttemptLimiter $attemptLimiter,
         LoggerInterface $logger,
     ): RedirectResponse {
         $response = null;
 
         try {
+            // First, before the state is looked at: a forged return costs the same as a
+            // genuine one. Keyed on the provider only when it is one the module knows, so
+            // an address cannot mint a counter per arbitrary string in the URL.
+            $attemptLimiter->consume(
+                self::CALLBACK_RATE_LIMIT_FLOW,
+                \array_key_exists($provider, $providerRegistry->getAllProviders()) ? $provider : 'unknown',
+                self::CALLBACK_MAXIMUM_ATTEMPTS,
+            );
+
             $state = $request->query->get('state') ?? $request->request->get('state');
             $cookieValue = $request->cookies->get(StateManager::COOKIE_NAME);
 
