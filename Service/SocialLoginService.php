@@ -303,12 +303,13 @@ final readonly class SocialLoginService
     }
 
     /**
-     * A name that is empty or only whitespace says nothing: it counts as absent, so the
-     * fallbacks above apply to it exactly as they do to a name the provider left out.
+     * A name that is empty or only whitespace, Unicode spaces included, says nothing: it
+     * counts as absent, so the fallbacks above apply to it exactly as they do to a name the
+     * provider left out.
      */
     private function presentOrNull(?string $name): ?string
     {
-        return null === $name || '' === trim($name) ? null : $name;
+        return null === $name || 1 === preg_match('/^[\s\p{Z}]*$/u', $name) ? null : $name;
     }
 
     private function bounded(string $name): string

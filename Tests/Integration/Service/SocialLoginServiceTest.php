@@ -125,6 +125,7 @@ final class SocialLoginServiceTest extends IntegrationTestCase
         yield 'whitespace only' => ['   ', "\t\n "];
         yield 'blank first name, no last name' => ['', null];
         yield 'no first name, blank last name' => [null, '  '];
+        yield 'unicode spaces only' => ["\u{00A0}", "\u{3000}"];
     }
 
     #[DataProvider('blankNames')]
