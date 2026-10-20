@@ -39,6 +39,26 @@ final class PasswordAttemptLimiterTest extends TestCase
     }
 
     /**
+     * The allowance is the caller's to set — the provider callback takes more than a
+     * password prompt does — and the subject is a string as well as an account id: two
+     * subjects never share a window.
+     */
+    public function testTheAllowanceAndTheSubjectAreTheCallers(): void
+    {
+        $limiter = new PasswordAttemptLimiter(new ArrayAdapter(), new RequestStack(), self::lockFactory());
+
+        for ($attempt = 0; $attempt < 7; ++$attempt) {
+            $limiter->consume('callback', 'google', 7);
+        }
+
+        $limiter->consume('callback', 'facebook', 7);
+
+        $this->expectException(TooManyAttemptsException::class);
+
+        $limiter->consume('callback', 'google', 7);
+    }
+
+    /**
      * Attempts that have aged out of the window no longer count against a caller. There is
      * no clock to move here — WINDOW_SECONDS is a private constant, and the module's own
      * namespace is not one PHPUnit's clock mock rewrites — so a full budget of attempts is

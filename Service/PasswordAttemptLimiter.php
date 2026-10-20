@@ -23,10 +23,13 @@ use Symfony\Contracts\Cache\ItemInterface;
 
 /**
  * Caps how often one visitor may guess one account's password on this module's two
- * password prompts — attaching an identity, and detaching the last one.
+ * password prompts — attaching an identity, and detaching the last one — and how often
+ * one client address may knock on the provider callback.
  *
  * Both prompts take a password for an account the caller has named but not proved they
- * own, which is a password oracle unless something stops the repetition.
+ * own, which is a password oracle unless something stops the repetition. The callback
+ * answers anyone, signed in or not, and runs a provider exchange behind a state check, so
+ * it is capped the same way: the subject is the provider instead of an account.
  *
  * Why a counter in the cache rather than `symfony/rate-limiter`: a limiter is declared
  * through the `framework.rate_limiter` configuration, whose factories are built by the
@@ -74,18 +77,21 @@ final readonly class PasswordAttemptLimiter
      * Called before the password is checked, so that a wrong guess and a right one cost
      * the same and the counter cannot be walked around by guessing correctly.
      *
+     * The subject is what the attempts are aimed at — an account id, or a provider code —
+     * and the allowance defaults to the password prompts' one.
+     *
      * @throws TooManyAttemptsException
      */
-    public function consume(string $flow, int $customerId): void
+    public function consume(string $flow, int|string $subject, int $maximumAttempts = self::MAXIMUM_ATTEMPTS): void
     {
         $clientAddress = $this->requestStack->getMainRequest()?->getClientIp() ?? 'cli';
-        $key = 'sociallogin.attempts.'.hash('sha256', $flow.'|'.$customerId.'|'.$clientAddress);
+        $key = 'sociallogin.attempts.'.hash('sha256', $flow.'|'.$subject.'|'.$clientAddress);
 
         $lock = $this->lockFactory->createLock($key, self::LOCK_TIMEOUT_SECONDS);
         $lock->acquire(true);
 
         try {
-            $this->record($key);
+            $this->record($key, $maximumAttempts);
         } finally {
             $lock->release();
         }
@@ -101,7 +107,7 @@ final readonly class PasswordAttemptLimiter
      *
      * @throws TooManyAttemptsException
      */
-    private function record(string $key): void
+    private function record(string $key, int $maximumAttempts): void
     {
         $now = time();
 
@@ -129,7 +135,7 @@ final readonly class PasswordAttemptLimiter
             }
         }
 
-        $refused = \count($attempts) >= self::MAXIMUM_ATTEMPTS;
+        $refused = \count($attempts) >= $maximumAttempts;
 
         if (!$refused) {
             $attempts[] = $now;
