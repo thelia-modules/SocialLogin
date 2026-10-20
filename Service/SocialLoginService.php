@@ -275,7 +275,7 @@ final readonly class SocialLoginService
      * The core stores both names as non-null columns and asks for them as strings, so
      * something has to go in when a provider gives neither — Apple hands the name over on
      * the very first authorisation and never again, so a returning visitor who is new to
-     * *this* shop arrives without one.
+     * *this* shop arrives without one. A blank name counts as none.
      *
      * What goes in is the local part of the visitor's own address: it is the only thing
      * about them that is actually known, it is recognisable to them and to the shop, and
@@ -293,11 +293,22 @@ final readonly class SocialLoginService
     private function nameFor(VerifiedIdentity $identity, string $email): array
     {
         $fallback = $this->nameFromEmail($email);
+        $firstName = $this->presentOrNull($identity->firstName);
+        $lastName = $this->presentOrNull($identity->lastName);
 
         return [
-            $this->bounded($identity->firstName ?? $fallback),
-            $this->bounded($identity->lastName ?? $identity->firstName ?? $fallback),
+            $this->bounded($firstName ?? $fallback),
+            $this->bounded($lastName ?? $firstName ?? $fallback),
         ];
+    }
+
+    /**
+     * A name that is empty or only whitespace says nothing: it counts as absent, so the
+     * fallbacks above apply to it exactly as they do to a name the provider left out.
+     */
+    private function presentOrNull(?string $name): ?string
+    {
+        return null === $name || '' === trim($name) ? null : $name;
     }
 
     private function bounded(string $name): string
